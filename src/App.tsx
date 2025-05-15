@@ -82,16 +82,12 @@ function App() {
   }, [isTimerActive, task]);
 
   // Manejo del temporizador
+  // Manejo del temporizador
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let interval: any = null;
 
-    if (isTimerActive && !timerPaused) {
-      // Reiniciar el estado de completado si es necesario
-      if (isCompleted) {
-        setIsCompleted(false);
-      }
-
+    if (isTimerActive && !timerPaused && !isCompleted) {
       // Inicializar tiempo si es necesario
       if (timeLeft === 0) {
         const totalSeconds = task.timeInMinutes * 60;
@@ -125,37 +121,46 @@ function App() {
   }, [isTimerActive, timerPaused, task.timeInMinutes, isCompleted]);
 
   // Función para reproducir sonido al finalizar
+  // Función para reproducir sonido al finalizar
   const playAlertSound = () => {
     try {
-      const audioContext = new (window.AudioContext ||
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      const playSound = (delay: number) => {
+        setTimeout(() => {
+          const audioContext = new (window.AudioContext ||
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (window as any).webkitAudioContext)();
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
 
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
 
-      // Configuración del sonido
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
-      gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+          // Configuración del sonido
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+          gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
 
-      // Inicio y fin del sonido
-      oscillator.start();
-      gainNode.gain.exponentialRampToValueAtTime(
-        0.01,
-        audioContext.currentTime + 1.5
-      );
+          // Inicio y fin del sonido
+          oscillator.start();
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            audioContext.currentTime + 1
+          );
 
-      setTimeout(() => {
-        oscillator.stop();
-      }, 1500);
+          setTimeout(() => {
+            oscillator.stop();
+          }, 1000);
+        }, delay);
+      };
+
+      // Reproducir el sonido tres veces con un intervalo de 1.2 segundos
+      playSound(0); // Inmediatamente
+      playSound(1200); // Después de 1.2 segundos
+      playSound(2400); // Después de 2.4 segundos
     } catch (e) {
       console.error("Error al reproducir sonido:", e);
     }
   };
-
   // Añadir sub-objetivo
   const addSubObjective = () => {
     if (newSubObjective.trim() === "") return;
@@ -235,8 +240,8 @@ function App() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4">
       {!isTimerActive ? (
-        <div className="w-full max-w-md bg-slate-800 border border-slate-700 rounded-lg shadow-lg p-6">
-          <div className="text-center mb-6">
+        <div className="w-full max-w-md bg-slate-800 border border-slate-700 rounded-lg shadow-lg p-6 overflow-hidden">
+          <div className="text-center mb-6 w-full break-words">
             <h1 className="text-2xl font-bold text-white">Focus Timer</h1>
             <p className="text-slate-400">
               Establece un objetivo y un tiempo para completarlo
@@ -381,7 +386,7 @@ function App() {
             </div>
           </div>
 
-          <h1 className="text-2xl md:text-4xl font-bold mt-8 text-center">
+          <h1 className="text-2xl md:text-4xl font-bold mt-8 text-center w-full break-words px-4 max-w-4xl">
             {task.objective}
           </h1>
 
@@ -402,7 +407,7 @@ function App() {
                         subObj.completed
                           ? "line-through text-slate-500"
                           : "text-white"
-                      }`}
+                      } break-words`}
                     >
                       {subObj.text}
                     </span>
@@ -436,7 +441,7 @@ function App() {
               onClick={stopTimer}
               className="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white"
             >
-              {isCompleted ? "Volver" : "Cancelar"}
+              {isCompleted ? "Volver al menú" : "Cancelar"}
             </button>
           </div>
 
