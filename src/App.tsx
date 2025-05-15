@@ -83,7 +83,8 @@ function App() {
 
   // Manejo del temporizador
   useEffect(() => {
-    let interval: NodeJS.Timeout | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let interval: any = null;
 
     if (isTimerActive && !timerPaused) {
       // Reiniciar el estado de completado si es necesario
