@@ -29,6 +29,7 @@ function App() {
   const [isCompleted, setIsCompleted] = useState(false);
   const [timerPaused, setTimerPaused] = useState(false);
   const [progress, setProgress] = useState(100);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Cargar datos del localStorage al iniciar
   useEffect(() => {
@@ -47,9 +48,42 @@ function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(task));
   }, [task]);
 
+  // Evento para prevenir al usuario antes de recargar/abandonar la página
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isTimerActive || hasUnsavedChanges) {
+        // Mensaje estándar que mostrará el navegador (no personalizable)
+        const message =
+          "¿Seguro que quieres abandonar la página? Los cambios no guardados se perderán.";
+        e.returnValue = message;
+        return message;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isTimerActive, hasUnsavedChanges]);
+
+  // Actualizar el estado de cambios no guardados
+  useEffect(() => {
+    // Cuando hay un temporizador activo o cuando hay subobjetivos, consideramos que hay cambios no guardados
+    if (
+      isTimerActive ||
+      task.subObjectives.length > 0 ||
+      task.objective !== ""
+    ) {
+      setHasUnsavedChanges(true);
+    } else {
+      setHasUnsavedChanges(false);
+    }
+  }, [isTimerActive, task]);
+
   // Manejo del temporizador
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
+    let interval: NodeJS.Timeout | undefined;
 
     if (isTimerActive && !timerPaused) {
       // Reiniciar el estado de completado si es necesario
