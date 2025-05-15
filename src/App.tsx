@@ -335,8 +335,8 @@ function App() {
                 ))}
                 {task.subObjectives.length === 0 && (
                   <p className="text-sm text-slate-500 italic">
-                    No hay sub-objetivos, añade algunos para organizar mejor tu
-                    tarea
+                    {`No hay sub-objetivos, añade algunos para organizar mejor tu
+                    tarea :)`}
                   </p>
                 )}
               </div>
@@ -350,6 +350,20 @@ function App() {
           >
             Iniciar Temporizador
           </button>
+
+          <div className="mt-6 text-center text-sm text-slate-400">
+            <p>
+              hope it helps... -{" "}
+              <a
+                href="https://www.linkedin.com/in/ericksiller"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-400 hover:underline"
+              >
+                Erick Siller
+              </a>
+            </p>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center w-full max-w-4xl">
