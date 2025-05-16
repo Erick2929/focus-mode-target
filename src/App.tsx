@@ -9,7 +9,7 @@ interface SubObjective {
 
 interface Task {
   objective: string;
-  timeInMinutes: number;
+  timeInMinutes: number | ""; // Cambio aquí: ahora puede ser número o string vacío
   subObjectives: SubObjective[];
 }
 
@@ -30,6 +30,8 @@ function App() {
   const [timerPaused, setTimerPaused] = useState(false);
   const [progress, setProgress] = useState(100);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isAddingSubtask, setIsAddingSubtask] = useState(false); // Nuevo estado para mostrar/ocultar el formulario de subtareas
+  const [overtime, setOvertime] = useState(0); // Nuevo estado para el tiempo excedido
 
   // Cargar datos del localStorage al iniciar
   useEffect(() => {
@@ -82,32 +84,42 @@ function App() {
   }, [isTimerActive, task]);
 
   // Manejo del temporizador
-  // Manejo del temporizador
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let interval: any = null;
 
-    if (isTimerActive && !timerPaused && !isCompleted) {
+    if (isTimerActive && !timerPaused) {
       // Inicializar tiempo si es necesario
-      if (timeLeft === 0) {
-        const totalSeconds = task.timeInMinutes * 60;
+      if (timeLeft === 0 && !isCompleted) {
+        const totalSeconds =
+          typeof task.timeInMinutes === "number" ? task.timeInMinutes * 60 : 0;
         setTimeLeft(totalSeconds);
       }
 
       interval = setInterval(() => {
         setTimeLeft((prevTime) => {
-          if (prevTime <= 1) {
+          if (prevTime <= 1 && !isCompleted) {
             // Temporizador completado
-            clearInterval(interval);
             setIsCompleted(true);
             playAlertSound();
+            // No detenemos el intervalo, continuamos contando en negativo
+            setOvertime(1); // Empezamos a contar el tiempo extra
             return 0;
+          } else if (isCompleted) {
+            // Si ya completamos el temporizador, incrementamos el tiempo de exceso
+            setOvertime((prevTime) => prevTime + 1);
+            return 0; // Mantenemos el tiempo en 0
           }
 
-          // Actualizar el progreso del círculo
-          const totalSeconds = task.timeInMinutes * 60;
-          const newProgress = ((prevTime - 1) / totalSeconds) * 100;
-          setProgress(newProgress);
+          // Actualizar el progreso del círculo solo si no está completado
+          if (!isCompleted) {
+            const totalSeconds =
+              typeof task.timeInMinutes === "number"
+                ? task.timeInMinutes * 60
+                : 0;
+            const newProgress = ((prevTime - 1) / totalSeconds) * 100;
+            setProgress(newProgress);
+          }
 
           return prevTime - 1;
         });
@@ -120,7 +132,6 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTimerActive, timerPaused, task.timeInMinutes, isCompleted]);
 
-  // Función para reproducir sonido al finalizar
   // Función para reproducir sonido al finalizar
   const playAlertSound = () => {
     try {
@@ -161,6 +172,7 @@ function App() {
       console.error("Error al reproducir sonido:", e);
     }
   };
+
   // Añadir sub-objetivo
   const addSubObjective = () => {
     if (newSubObjective.trim() === "") return;
@@ -178,6 +190,11 @@ function App() {
     });
 
     setNewSubObjective("");
+
+    // Si estamos en modo de enfoque, ocultamos el formulario después de agregar
+    if (isTimerActive) {
+      setIsAddingSubtask(false);
+    }
   };
 
   // Cambiar estado de sub-objetivo
@@ -200,18 +217,27 @@ function App() {
 
   // Iniciar temporizador
   const startTimer = () => {
-    if (task.objective.trim() === "" || task.timeInMinutes <= 0) return;
+    // Validar que haya un objetivo y un tiempo válido
+    if (
+      task.objective.trim() === "" ||
+      task.timeInMinutes === "" ||
+      (typeof task.timeInMinutes === "number" && task.timeInMinutes <= 0)
+    ) {
+      return;
+    }
 
     // Reiniciar el timer si ya terminó
     if (isCompleted) {
       setIsCompleted(false);
+      setOvertime(0);
     }
 
     setIsTimerActive(true);
     setTimerPaused(false);
 
     // Configurar tiempo inicial
-    const totalSeconds = task.timeInMinutes * 60;
+    const totalSeconds =
+      typeof task.timeInMinutes === "number" ? task.timeInMinutes * 60 : 0;
     setTimeLeft(totalSeconds);
     setProgress(100);
   };
@@ -226,15 +252,23 @@ function App() {
     setIsTimerActive(false);
     setTimerPaused(false);
     setIsCompleted(false);
+    setOvertime(0);
   };
 
   // Formatear tiempo para mostrar
   const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs
+    const isNegative = seconds < 0;
+    const absSeconds = Math.abs(seconds);
+    const mins = Math.floor(absSeconds / 60);
+    const secs = absSeconds % 60;
+    return `${isNegative ? "-" : ""}${mins.toString().padStart(2, "0")}:${secs
       .toString()
       .padStart(2, "0")}`;
+  };
+
+  // Mostrar/ocultar el formulario de subtareas en modo de enfoque
+  const toggleAddSubtask = () => {
+    setIsAddingSubtask(!isAddingSubtask);
   };
 
   return (
@@ -274,12 +308,19 @@ function App() {
                 min="1"
                 max="120"
                 value={task.timeInMinutes}
-                onChange={(e) =>
-                  setTask({
-                    ...task,
-                    timeInMinutes: parseInt(e.target.value) || 1,
-                  })
-                }
+                onChange={(e) => {
+                  // Permitir campo vacío o valores numéricos
+                  const value = e.target.value;
+                  if (value === "") {
+                    setTask({ ...task, timeInMinutes: "" });
+                  } else {
+                    const numValue = parseInt(value);
+                    setTask({
+                      ...task,
+                      timeInMinutes: isNaN(numValue) ? "" : numValue,
+                    });
+                  }
+                }}
                 className="w-full p-2 rounded bg-slate-700 border border-slate-600 text-white"
               />
             </div>
@@ -345,7 +386,12 @@ function App() {
 
           <button
             onClick={startTimer}
-            disabled={task.objective.trim() === "" || task.timeInMinutes <= 0}
+            disabled={
+              task.objective.trim() === "" ||
+              task.timeInMinutes === "" ||
+              (typeof task.timeInMinutes === "number" &&
+                task.timeInMinutes <= 0)
+            }
             className="w-full mt-6 p-2 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Iniciar Temporizador
@@ -387,16 +433,25 @@ function App() {
                 stroke={isCompleted ? "#10b981" : "#6366f1"}
                 strokeWidth="8"
                 strokeDasharray="283"
-                strokeDashoffset={283 - (283 * progress) / 100}
+                strokeDashoffset={
+                  isCompleted ? 0 : 283 - (283 * progress) / 100
+                }
                 strokeLinecap="round"
                 transform="rotate(-90 50 50)"
                 className="transition-all duration-1000"
               />
             </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center justify-center flex-col">
               <span className="text-4xl md:text-6xl font-bold">
-                {isCompleted ? "¡TIEMPO!" : formatTime(timeLeft)}
+                {isCompleted
+                  ? formatTime(-overtime) // Mostrar tiempo negativo cuando está completo
+                  : formatTime(timeLeft)}
               </span>
+              {isCompleted && (
+                <span className="text-sm text-red-400 mt-2">
+                  Tiempo excedido
+                </span>
+              )}
             </div>
           </div>
 
@@ -404,52 +459,97 @@ function App() {
             {task.objective}
           </h1>
 
-          {task.subObjectives.length > 0 && (
-            <div className="mt-8 w-full max-w-md">
-              <h2 className="text-xl font-semibold mb-4">Sub-objetivos:</h2>
-              <div className="grid gap-2">
-                {task.subObjectives.map((subObj) => (
-                  <div
-                    key={subObj.id}
-                    className="flex items-center space-x-2 p-3 bg-slate-800 rounded-lg border border-slate-700"
-                  >
-                    <div className="h-5 w-5 text-amber-500">
-                      {subObj.completed ? "✓" : "!"}
-                    </div>
-                    <span
-                      className={`${
-                        subObj.completed
-                          ? "line-through text-slate-500"
-                          : "text-white"
-                      } break-words`}
-                    >
-                      {subObj.text}
-                    </span>
-                    <input
-                      type="checkbox"
-                      className="ml-auto h-4 w-4"
-                      checked={subObj.completed}
-                      onChange={() => toggleSubObjective(subObj.id)}
-                    />
-                  </div>
-                ))}
-              </div>
+          {/* Sección de sub-objetivos */}
+          <div className="mt-8 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Sub-objetivos:</h2>
+              {!isAddingSubtask ? (
+                <button
+                  onClick={toggleAddSubtask}
+                  className="text-indigo-400 hover:text-indigo-300 text-sm flex items-center"
+                >
+                  <span className="mr-1">+</span> Agregar sub-objetivo
+                </button>
+              ) : (
+                <button
+                  onClick={toggleAddSubtask}
+                  className="text-slate-400 hover:text-slate-300 text-sm"
+                >
+                  Cancelar
+                </button>
+              )}
             </div>
-          )}
+
+            {/* Formulario para agregar subtareas durante el modo de enfoque */}
+            {isAddingSubtask && (
+              <div className="mb-4 bg-slate-800 p-3 rounded-lg border border-slate-700">
+                <div className="flex space-x-2">
+                  <input
+                    placeholder="Añadir sub-objetivo"
+                    value={newSubObjective}
+                    onChange={(e) => setNewSubObjective(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addSubObjective()}
+                    className="flex-1 p-2 rounded bg-slate-700 border border-slate-600 text-white"
+                    autoFocus
+                  />
+                  <button
+                    onClick={addSubObjective}
+                    className="px-4 py-2 rounded border border-slate-600 text-white hover:bg-slate-700"
+                  >
+                    Añadir
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Lista de sub-objetivos */}
+            <div className="grid gap-2">
+              {task.subObjectives.map((subObj) => (
+                <div
+                  key={subObj.id}
+                  className="flex items-center space-x-2 p-3 bg-slate-800 rounded-lg border border-slate-700"
+                >
+                  <div className="h-5 w-5 text-amber-500">
+                    {subObj.completed ? "✓" : "!"}
+                  </div>
+                  <span
+                    className={`${
+                      subObj.completed
+                        ? "line-through text-slate-500"
+                        : "text-white"
+                    } break-words`}
+                  >
+                    {subObj.text}
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="ml-auto h-4 w-4"
+                    checked={subObj.completed}
+                    onChange={() => toggleSubObjective(subObj.id)}
+                  />
+                </div>
+              ))}
+
+              {task.subObjectives.length === 0 && (
+                <p className="text-sm text-slate-500 italic text-center p-3 bg-slate-800 rounded-lg border border-slate-700">
+                  No hay sub-objetivos. ¡Agrega algunos para organizar mejor tu
+                  tarea!
+                </p>
+              )}
+            </div>
+          </div>
 
           <div className="flex space-x-3 mt-8">
-            {!isCompleted && (
-              <button
-                onClick={togglePause}
-                className={`px-4 py-2 rounded ${
-                  timerPaused
-                    ? "bg-indigo-600 hover:bg-indigo-700"
-                    : "bg-amber-600 hover:bg-amber-700"
-                } text-white`}
-              >
-                {timerPaused ? "Reanudar" : "Pausar"}
-              </button>
-            )}
+            <button
+              onClick={togglePause}
+              className={`px-4 py-2 rounded ${
+                timerPaused
+                  ? "bg-indigo-600 hover:bg-indigo-700"
+                  : "bg-amber-600 hover:bg-amber-700"
+              } text-white`}
+            >
+              {timerPaused ? "Reanudar" : "Pausar"}
+            </button>
 
             <button
               onClick={stopTimer}
@@ -462,7 +562,9 @@ function App() {
           {isCompleted && (
             <div className="mt-8 p-4 bg-green-600 rounded-lg shadow-lg">
               <p className="text-xl font-bold">¡Tiempo completado!</p>
-              <p>Has terminado tu sesión de enfoque</p>
+              <p>
+                Has terminado tu sesión de enfoque. Puedes seguir trabajando.
+              </p>
             </div>
           )}
         </div>
