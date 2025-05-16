@@ -83,14 +83,14 @@ function App() {
     }
   }, [isTimerActive, task]);
 
-  // Manejo del temporizador
+  // Manejo del temporizador principal
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let interval: any = null;
 
-    if (isTimerActive && !timerPaused) {
+    if (isTimerActive && !timerPaused && !isCompleted) {
       // Inicializar tiempo si es necesario
-      if (timeLeft === 0 && !isCompleted) {
+      if (timeLeft === 0) {
         const totalSeconds =
           typeof task.timeInMinutes === "number" ? task.timeInMinutes * 60 : 0;
         setTimeLeft(totalSeconds);
@@ -98,28 +98,21 @@ function App() {
 
       interval = setInterval(() => {
         setTimeLeft((prevTime) => {
-          if (prevTime <= 1 && !isCompleted) {
+          if (prevTime <= 1) {
             // Temporizador completado
             setIsCompleted(true);
             playAlertSound();
-            // No detenemos el intervalo, continuamos contando en negativo
-            setOvertime(1); // Empezamos a contar el tiempo extra
+            // Detenemos este intervalo, el contador de overtime se manejará en otro useEffect
             return 0;
-          } else if (isCompleted) {
-            // Si ya completamos el temporizador, incrementamos el tiempo de exceso
-            setOvertime((prevTime) => prevTime + 1);
-            return 0; // Mantenemos el tiempo en 0
           }
 
-          // Actualizar el progreso del círculo solo si no está completado
-          if (!isCompleted) {
-            const totalSeconds =
-              typeof task.timeInMinutes === "number"
-                ? task.timeInMinutes * 60
-                : 0;
-            const newProgress = ((prevTime - 1) / totalSeconds) * 100;
-            setProgress(newProgress);
-          }
+          // Actualizar el progreso del círculo
+          const totalSeconds =
+            typeof task.timeInMinutes === "number"
+              ? task.timeInMinutes * 60
+              : 0;
+          const newProgress = ((prevTime - 1) / totalSeconds) * 100;
+          setProgress(newProgress);
 
           return prevTime - 1;
         });
@@ -131,6 +124,23 @@ function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTimerActive, timerPaused, task.timeInMinutes, isCompleted]);
+
+  // Manejo separado del contador de tiempo excedido
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let overtimeInterval: any = null;
+
+    if (isTimerActive && !timerPaused && isCompleted) {
+      // Solo iniciar el contador de overtime cuando se ha completado el tiempo original
+      overtimeInterval = setInterval(() => {
+        setOvertime((prevOvertime) => prevOvertime + 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (overtimeInterval) clearInterval(overtimeInterval);
+    };
+  }, [isTimerActive, timerPaused, isCompleted]);
 
   // Función para reproducir sonido al finalizar
   const playAlertSound = () => {
@@ -253,6 +263,7 @@ function App() {
     setTimerPaused(false);
     setIsCompleted(false);
     setOvertime(0);
+    setTimeLeft(0);
   };
 
   // Formatear tiempo para mostrar
