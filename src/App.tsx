@@ -32,6 +32,8 @@ function App() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isAddingSubtask, setIsAddingSubtask] = useState(false); // Nuevo estado para mostrar/ocultar el formulario de subtareas
   const [overtime, setOvertime] = useState(0); // Nuevo estado para el tiempo excedido
+  const [objectiveCompleted, setObjectiveCompleted] = useState(false); // Nuevo estado para controlar si el objetivo principal está completado
+  const [showCelebration, setShowCelebration] = useState(false); // Nuevo estado para controlar la animación de celebración
 
   // Cargar datos del localStorage al iniciar
   useEffect(() => {
@@ -82,6 +84,21 @@ function App() {
       setHasUnsavedChanges(false);
     }
   }, [isTimerActive, task]);
+
+  // Verificar si los sub-objetivos están completos
+  useEffect(() => {
+    const allSubObjectivesCompleted = task.subObjectives.every(
+      (subObj) => subObj.completed
+    );
+    if (allSubObjectivesCompleted) {
+      setObjectiveCompleted(true);
+      setShowCelebration(true);
+      playCelebrationSound();
+    } else {
+      setObjectiveCompleted(false);
+      setShowCelebration(false);
+    }
+  }, [task.subObjectives]);
 
   // Manejo del temporizador principal
   useEffect(() => {
@@ -142,6 +159,18 @@ function App() {
     };
   }, [isTimerActive, timerPaused, isCompleted]);
 
+  // Control de la animación de celebración
+  useEffect(() => {
+    if (showCelebration) {
+      // Ocultar la animación después de 5 segundos
+      const timer = setTimeout(() => {
+        setShowCelebration(false);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showCelebration]);
+
   // Función para reproducir sonido al finalizar
   const playAlertSound = () => {
     try {
@@ -177,9 +206,55 @@ function App() {
       // Reproducir el sonido tres veces con un intervalo de 1.2 segundos
       playSound(0); // Inmediatamente
       playSound(1200); // Después de 1.2 segundos
-      playSound(2400); // Después de 2.4 segundos
+      playSound(2600); // Después de 1.2 segundos
     } catch (e) {
       console.error("Error al reproducir sonido:", e);
+    }
+  };
+
+  // Función para reproducir sonido de celebración
+  const playCelebrationSound = () => {
+    try {
+      const audioContext = new (window.AudioContext ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).webkitAudioContext)();
+
+      // Crear un conjunto de notas para una melodía alegre
+      const notes = [
+        { frequency: 523.25, duration: 0.2 }, // C5
+        { frequency: 659.25, duration: 0.2 }, // E5
+        { frequency: 783.99, duration: 0.2 }, // G5
+        { frequency: 1046.5, duration: 0.6 }, // C6 (más largo)
+      ];
+
+      notes.forEach((note, index) => {
+        setTimeout(() => {
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(
+            note.frequency,
+            audioContext.currentTime
+          );
+          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+
+          oscillator.start();
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            audioContext.currentTime + note.duration
+          );
+
+          setTimeout(() => {
+            oscillator.stop();
+          }, note.duration * 1000);
+        }, index * 250); // Espaciar las notas
+      });
+    } catch (e) {
+      console.error("Error al reproducir sonido de celebración:", e);
     }
   };
 
@@ -244,6 +319,7 @@ function App() {
 
     setIsTimerActive(true);
     setTimerPaused(false);
+    setObjectiveCompleted(false); // Reiniciar estado de objetivo completado
 
     // Configurar tiempo inicial
     const totalSeconds =
@@ -264,6 +340,15 @@ function App() {
     setIsCompleted(false);
     setOvertime(0);
     setTimeLeft(0);
+    setObjectiveCompleted(false);
+    setShowCelebration(false);
+  };
+
+  // Completar objetivo manualmente
+  const completeObjective = () => {
+    setObjectiveCompleted(true);
+    setShowCelebration(true);
+    playCelebrationSound();
   };
 
   // Formatear tiempo para mostrar
@@ -424,6 +509,52 @@ function App() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center w-full max-w-4xl">
+          {/* Animación de celebración */}
+          {showCelebration && (
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <div className="confetti-container">
+                {[...Array(50)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="confetti"
+                    style={{
+                      left: `${Math.random() * 100}%`,
+                      animationDelay: `${Math.random() * 5}s`,
+                      backgroundColor: `hsl(${Math.random() * 360}, 90%, 60%)`,
+                    }}
+                  />
+                ))}
+              </div>
+              <style>{`
+                .confetti-container {
+                  position: absolute;
+                  width: 100%;
+                  height: 100%;
+                  overflow: hidden;
+                  z-index: 100;
+                }
+                .confetti {
+                  position: absolute;
+                  width: 10px;
+                  height: 10px;
+                  opacity: 0;
+                  transform: translateY(0) rotate(0);
+                  animation: confetti-fall 5s ease-out forwards;
+                }
+                @keyframes confetti-fall {
+                  0% {
+                    opacity: 1;
+                    transform: translateY(-100%) rotate(0deg);
+                  }
+                  100% {
+                    opacity: 0;
+                    transform: translateY(100vh) rotate(720deg);
+                  }
+                }
+              `}</style>
+            </div>
+          )}
+
           <div className={`relative ${isCompleted ? "animate-pulse" : ""}`}>
             <svg className="w-64 h-64 md:w-96 md:h-96" viewBox="0 0 100 100">
               {/* Círculo de fondo */}
@@ -441,11 +572,19 @@ function App() {
                 cy="50"
                 r="45"
                 fill="none"
-                stroke={isCompleted ? "#10b981" : "#6366f1"}
+                stroke={
+                  objectiveCompleted
+                    ? "#10b981"
+                    : isCompleted
+                    ? "#10b981"
+                    : "#6366f1"
+                }
                 strokeWidth="8"
                 strokeDasharray="283"
                 strokeDashoffset={
-                  isCompleted ? 0 : 283 - (283 * progress) / 100
+                  objectiveCompleted || isCompleted
+                    ? 0
+                    : 283 - (283 * progress) / 100
                 }
                 strokeLinecap="round"
                 transform="rotate(-90 50 50)"
@@ -453,22 +592,41 @@ function App() {
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center flex-col">
-              <span className="text-4xl md:text-6xl font-bold">
-                {isCompleted
-                  ? formatTime(-overtime) // Mostrar tiempo negativo cuando está completo
-                  : formatTime(timeLeft)}
-              </span>
-              {isCompleted && (
-                <span className="text-sm text-red-400 mt-2">
-                  Tiempo excedido
+              {objectiveCompleted ? (
+                <span className="text-4xl md:text-6xl font-bold text-green-400">
+                  ¡LISTO!
                 </span>
+              ) : (
+                <>
+                  <span className="text-4xl md:text-6xl font-bold">
+                    {isCompleted
+                      ? formatTime(-overtime) // Mostrar tiempo negativo cuando está completo
+                      : formatTime(timeLeft)}
+                  </span>
+                  {isCompleted && (
+                    <span className="text-sm text-red-400 mt-2">
+                      Tiempo excedido
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>
 
-          <h1 className="text-2xl md:text-4xl font-bold mt-8 text-center w-full break-words px-4 max-w-4xl">
+          <h1
+            className={`text-2xl md:text-4xl font-bold mt-8 text-center w-full break-words px-4 max-w-4xl ${
+              objectiveCompleted ? "line-through text-green-400" : ""
+            }`}
+          >
             {task.objective}
           </h1>
+
+          {/* Mensaje de felicitación cuando se completa el objetivo */}
+          {objectiveCompleted && (
+            <div className="mt-4 text-green-400 font-bold text-xl animate-bounce">
+              ¡Felicidades! Has completado tu objetivo
+            </div>
+          )}
 
           {/* Sección de sub-objetivos */}
           <div className="mt-8 w-full max-w-md">
@@ -550,7 +708,16 @@ function App() {
             </div>
           </div>
 
-          <div className="flex space-x-3 mt-8">
+          <div className="flex flex-wrap justify-center space-x-2 space-y-2 sm:space-y-0 mt-8">
+            {!objectiveCompleted && (
+              <button
+                onClick={completeObjective}
+                className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white font-medium transition-all duration-300 transform hover:scale-105"
+              >
+                ¡Completar Objetivo!
+              </button>
+            )}
+
             <button
               onClick={togglePause}
               className={`px-4 py-2 rounded ${
@@ -566,11 +733,13 @@ function App() {
               onClick={stopTimer}
               className="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white"
             >
-              {isCompleted ? "Volver al menú" : "Cancelar"}
+              {objectiveCompleted || isCompleted
+                ? "Volver al menú"
+                : "Cancelar"}
             </button>
           </div>
 
-          {isCompleted && (
+          {isCompleted && !objectiveCompleted && (
             <div className="mt-8 p-4 bg-green-600 rounded-lg shadow-lg">
               <p className="text-xl font-bold">¡Tiempo completado!</p>
               <p>
