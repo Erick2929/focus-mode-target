@@ -672,7 +672,7 @@ function App() {
             )}
 
             {/* Lista de sub-objetivos */}
-            <div className="grid gap-2">
+            <div className="grid gap-2 max-h-60 overflow-y-auto">
               {task.subObjectives.map((subObj) => (
                 <div
                   key={subObj.id}
